@@ -9,6 +9,7 @@
 #include "display.h"
 #include "game.h"
 #include "physfsrwops.h"
+#include "imagetag.h"
 #include <SDL_image.h>
 #include "boost/filesystem/operations.hpp"
 
@@ -902,8 +903,8 @@ unsigned int BTDisplay::process(const char *specialKeys /*= NULL*/, int *delay /
   SDL_UpdateRect(mainScreen, text.x, text.y, text.w, text.h);
  else if (select->numbered)
  {
-   select->draw(*this);
-   SDL_UpdateRect(mainScreen, text.x, text.y, text.w, text.h);
+  select->draw(*this);
+  SDL_UpdateRect(mainScreen, text.x, text.y, text.w, text.h);
  }
  int start = SDL_GetTicks();
  int delayCurrent = ((delayOveride != -1) ? delayOveride : (delay ? *delay : 0));
@@ -1058,6 +1059,8 @@ unsigned int BTDisplay::readChar(int delay /*= 0*/)
     return BTKEY_INS;
    else if ((sdlevent.key.keysym.sym == SDLK_KP_PERIOD) || (sdlevent.key.keysym.sym == SDLK_DELETE))
     return BTKEY_DEL;
+   else if (sdlevent.key.keysym.sym == SDLK_F1)
+    return BTKEY_F1;
    else if (sdlevent.key.keysym.sym == SDLK_F12)
     toggleFullScreen();
    if ((animationDelay) && ((delay == 0) || (animationDelay < delay)))
@@ -1148,9 +1151,9 @@ void BTDisplay::removeAnimation(MNG_AnimationState *animState)
 
 int BTDisplay::selectImage(int initial)
 {
- char sz[50];
- snprintf(sz, 50, "%d", initial);
- std::string s = sz;
+ BTImageTagList &tagList = BTCore::getCore()->getImageTagList();
+ bool blank = true;
+ std::string s;
  int w, h;
  sizeFont(s.c_str(), w, h);
  if (h + textPos > text.h)
@@ -1167,49 +1170,81 @@ int BTDisplay::selectImage(int initial)
  dst.w = text.w;
  drawText(full.c_str());
  int endPos = textPos;
+ int bottomPos = text.h;
  int current = initial;
+ int selected = current;
  drawImage(current);
+ int sz = 0;
+ int st = 0;
+ BTDisplay::selectItem *sl = tagList.search(s, blank, current, sz, selected);
+ BTUISelect *select = new BTUISelect(sl, sz, st, selected);
+ select->position.x = text.x;
+ select->position.y = text.y + textPos;
+ select->position.w = text.w;
+ select->position.h = bottomPos - textPos;
+ select->sanitize(*this);
+ select->draw(*this);
+ SDL_UpdateRect(mainScreen, text.x, text.y, text.w, text.h);
  while (((key = readChar()) != 13) && (key !=  27))
  {
+  bool searchChange = false;
   if (key == 8)
   {
    if (len > 0)
    {
     s.erase(--len);
     full.erase(full.length() - 1);
+    searchChange = true;
    }
-   current = atol(s.c_str());
   }
-  else if ((len < 50) && (key >= '0') && (key <= '9'))
+  else if ((key == '+') || (key == BTKEY_UP))
+  {
+   select->moveUp(*this);
+  }
+  else if ((key == '-') || (key == BTKEY_DOWN))
+  {
+   select->moveDown(*this);
+  }
+  else if (key == BTKEY_PGUP)
+  {
+   select->pageUp(*this);
+  }
+  else if (key == BTKEY_PGDN)
+  {
+   select->pageDown(*this);
+  }
+  else if (key == BTKEY_F1)
+  {
+   blank = !blank;
+   searchChange = true;
+  }
+  else if ((len < 50) && (key >= ' ') && (key <= '~'))
   {
    s.push_back(key);
    full.push_back(key);
    ++len;
-   current = atol(s.c_str());
-  }
-  else if ((key == '+') || (key == BTKEY_UP))
-  {
-   ++current;
-   snprintf(sz, 50, "%d", current);
-   full = s = sz;
-  }
-  else if ((key == '-') || (key == BTKEY_DOWN))
-  {
-   --current;
-   snprintf(sz, 50, "%d", current);
-   full = s = sz;
+   searchChange = true;
   }
   else
    continue;
+  current = sl[selected].value;
+  if (searchChange)
+  {
+   BTDisplay::selectItem *sl = tagList.search(s, blank, current, sz, selected);
+   select->alter(sl, sz);
+   select->sanitize(*this);
+  }
   dst.h = endPos - startPos;
   SDL_BlitSurface(mainBackground, &dst, mainScreen, &dst);
   textPos = startPos;
   drawText(full.c_str());
   if (textPos > endPos)
    endPos = textPos;
-  SDL_UpdateRect(mainScreen, text.x, text.y, text.w, endPos - startPos);
+  select->draw(*this);
+  SDL_UpdateRect(mainScreen, text.x, text.y, text.w, text.h);
   drawImage(current);
  }
+ delete select;
  return ((key == 27) ? initial : current);
 }
 
@@ -1777,6 +1812,12 @@ void BTUISelect::draw(BTDisplay &d)
    dst.y += h;
   }
  }
+}
+
+void BTUISelect::alter(BTDisplay::selectItem *l, int sz)
+{
+ list = l;
+ size = sz;
 }
 
 void BTUISelect::decrement(BTDisplay &d)

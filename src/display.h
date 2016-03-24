@@ -30,13 +30,14 @@
 #define BTKEY_LEFT 4
 #define BTKEY_RIGHT 5
 #define BTKEY_PGDN 6
-#define BTKEY_PGUP SDLK_PAGEUP
+#define BTKEY_PGUP 23
 #define BTKEY_END 7
 #define BTKEY_INS 8
 #define BTKEY_DEL 127
 #define BTKEY_CTRL_C 3
 #define BTKEY_CTRL_X 24
 #define BTKEY_CTRL_V 22
+#define BTKEY_F1 28
 
 #define BTMUSICID_ALL 0
 
@@ -249,6 +250,7 @@ class BTUISelect : public BTUIElement
 
   void draw(BTDisplay &d);
 
+  void alter(BTDisplay::selectItem *l, int sz);
   void decrement(BTDisplay &d);
   void increment(BTDisplay &d);
   void moveDown(BTDisplay &d);
